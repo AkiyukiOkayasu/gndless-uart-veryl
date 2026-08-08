@@ -27,6 +27,8 @@ pub module UartRx #(
     valid: output logic            , /// 受信完了パルス
 ) {
     const CYCLES_PER_BIT: u32 = CLK_FREQ / BAUD_RATE;
+    const CLK_CNT_WIDTH : u32 = $clog2(CYCLES_PER_BIT);
+    const BIT_CNT_WIDTH : u32 = $std::max::<u32>($clog2(DATA_WIDTH), 1);
 
     enum State {
         Idle,
@@ -36,10 +38,10 @@ pub module UartRx #(
     }
     import State::*;
 
-    var state  : State            ;
-    var clk_cnt: u32              ;
-    var bit_cnt: u8               ;
-    var rx_reg : logic<DATA_WIDTH>;
+    var state  : State               ;
+    var clk_cnt: logic<CLK_CNT_WIDTH>;
+    var bit_cnt: logic<BIT_CNT_WIDTH>;
+    var rx_reg : logic<DATA_WIDTH>   ;
 
     always_ff {
         if_reset {
