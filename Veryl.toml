@@ -1,6 +1,6 @@
 [project]
 name = "gndless_uart"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Akiyuki Okayasu"]
 description = "Parameterized asynchronous UART receiver for Veryl."
 license = "MIT OR Apache-2.0"
