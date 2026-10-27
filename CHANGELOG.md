@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- framing errorとfalse startからの復帰を検証するtestを追加した
+
+### Changed
+
+- `CLK_FREQ / BAUD_RATE >= 2`と`DATA_WIDTH >= 1`のパラメータ契約をdoc commentへ明記した
+
 ## [0.1.1] - 2026-08-08
 
 - 公開moduleのparam/port doc commentを追加し、説明文の途中改行を整理

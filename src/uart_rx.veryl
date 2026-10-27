@@ -1,6 +1,7 @@
 /// 非同期シリアル入力を受信するUARTレシーバ
 ///
 /// `CLK_FREQ`と`BAUD_RATE`から1ビットのクロック数を計算し、スタートビット、`DATA_WIDTH`ビットのデータ、ストップビットを順にサンプリング。
+/// `CLK_FREQ / BAUD_RATE`は2以上、`DATA_WIDTH`は1以上を指定する。
 /// 1バイトの受信完了時に`valid`を1クロックだけアサート。
 /// data bitはLSB-firstで、各bitの中央をサンプリングする。stop bitがLowならframing errorとして破棄し、`valid`をアサートしない。
 ///
@@ -193,6 +194,125 @@ module test_uart_rx {
         // 受信完了後は valid=0 (アイドル状態)
         $assert(valid == 1'b0, "o_valid should be 0 after reception");
 
+        $finish();
+    }
+}
+
+/// stop bitがLowのframeを破棄し、validを出さないことを検証
+#[test(test_uart_rx_framing_error)]
+module test_uart_rx_framing_error {
+    inst clk: $tb::clock_gen;
+    inst rst: $tb::reset_gen ( clk );
+
+    var rx        : logic   ;
+    var data      : logic<8>;
+    var valid     : logic   ;
+    var valid_seen: logic   ;
+
+    inst dut: UartRx #(
+        CLK_FREQ  : 50_000_000,
+        BAUD_RATE : 31250     ,
+        DATA_WIDTH: 8         ,
+    ) (
+        clk         ,
+        rst         ,
+        rx   : rx   ,
+        data : data ,
+        valid: valid,
+    );
+
+    always_ff (clk, rst) {
+        if_reset {
+            valid_seen = 0;
+        } else if valid {
+            valid_seen = 1;
+        }
+    }
+
+    const CYCLES_PER_BIT: u32 = 1600;
+
+    initial {
+        rx = 1;
+        rst.assert();
+        clk.next(10);
+
+        rx = 0;
+        clk.next(CYCLES_PER_BIT);
+        for _i in 0..8 {
+            rx = 0;
+            clk.next(CYCLES_PER_BIT);
+        }
+        // framing error: stop bitをLowのままにする
+        rx = 0;
+        clk.next(CYCLES_PER_BIT);
+        clk.next(CYCLES_PER_BIT);
+
+        $assert(!valid_seen, "framing error must not assert valid");
+        $finish();
+    }
+}
+
+/// 短いLowパルスをstart bitと誤認せず、後続の正しいbyteを受信できることを検証
+#[test(test_uart_rx_false_start)]
+module test_uart_rx_false_start {
+    inst clk: $tb::clock_gen;
+    inst rst: $tb::reset_gen ( clk );
+
+    var rx        : logic   ;
+    var data      : logic<8>;
+    var valid     : logic   ;
+    var valid_seen: logic   ;
+
+    inst dut: UartRx #(
+        CLK_FREQ  : 50_000_000,
+        BAUD_RATE : 31250     ,
+        DATA_WIDTH: 8         ,
+    ) (
+        clk         ,
+        rst         ,
+        rx   : rx   ,
+        data : data ,
+        valid: valid,
+    );
+
+    always_ff (clk, rst) {
+        if_reset {
+            valid_seen = 0;
+        } else if valid {
+            valid_seen = 1;
+        }
+    }
+
+    const CYCLES_PER_BIT: u32 = 1600;
+
+    function send_byte (
+        value: input logic<8>,
+    ) {
+        rx = 0;
+        clk.next(CYCLES_PER_BIT);
+        for i in 0..8 {
+            rx = value[i];
+            clk.next(CYCLES_PER_BIT);
+        }
+        rx = 1;
+        clk.next(CYCLES_PER_BIT);
+    }
+
+    initial {
+        rx = 1;
+        rst.assert();
+        clk.next(10);
+
+        // 半bit未満のLowパルスはstart bitとして確定しない
+        rx = 0;
+        clk.next(CYCLES_PER_BIT / 4);
+        rx = 1;
+        clk.next(CYCLES_PER_BIT);
+        $assert(!valid_seen, "false start must not assert valid");
+
+        send_byte(8'h5A);
+        $assert(valid_seen, "receiver must recover after a false start");
+        $assert(data == 8'h5A, "recovered data mismatch");
         $finish();
     }
 }
